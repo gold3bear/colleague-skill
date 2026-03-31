@@ -21,9 +21,23 @@
 
 <br>
 
-提供同事的原材料（飞书消息、钉钉文档、邮件、截图）加上你的主观描述<br>
-生成一个**真正能替他工作的 AI Skill**<br>
+<table>
+<tr>
+<td>
+<img src="docs/yaya.png" height="120px"/>
+<br/><sub><em>——《流浪地球2》</em></sub>
+</td>
+<td valign="middle">
+
+提供同事的原材料（飞书消息、钉钉文档、邮件、截图）加上你的主观描述
+
+生成一个**真正能替他工作的 AI Skill**
+
 用他的技术规范写代码，用他的语气回答问题，知道他什么时候会甩锅
+
+</td>
+</tr>
+</table>
 
 [数据来源](#支持的数据来源) · [安装](#安装) · [使用](#使用) · [效果示例](#效果示例) · [详细安装说明](INSTALL.md) · [**English**](README_EN.md)
 
@@ -39,6 +53,8 @@
 |------|:-------:|:-----------:|:-------:|------|
 | 飞书（自动采集） | ✅ API | ✅ | ✅ | 输入姓名即可，全自动 |
 | 钉钉（自动采集） | ⚠️ 浏览器 | ✅ | ✅ | 钉钉 API 不支持历史消息 |
+| Slack（自动采集） | ✅ API | — | — | 需管理员安装 Bot；免费版限 90 天 |
+| 企业微信（浏览器采集） | ✅ 浏览器 | — | — | 扫码登录；文档需手动上传 |
 | PDF | — | ✅ | — | 手动上传 |
 | 图片 / 截图 | ✅ | — | — | 手动上传 |
 | 飞书 JSON 导出 | ✅ | ✅ | — | 手动上传 |
@@ -177,6 +193,8 @@ create-colleague/
 │   ├── feishu_browser.py         # 飞书浏览器方案
 │   ├── feishu_mcp_client.py      # 飞书 MCP 方案
 │   ├── dingtalk_auto_collector.py # 钉钉全自动采集
+│   ├── slack_auto_collector.py   # Slack 全自动采集
+│   ├── wecom_browser_collector.py # 企业微信浏览器采集
 │   ├── email_parser.py           # 邮件解析
 │   ├── skill_writer.py           # Skill 文件管理
 │   └── version_manager.py        # 版本存档与回滚
