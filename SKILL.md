@@ -1,10 +1,10 @@
 ---
-name: create-colleague
-description: "Distill a colleague into an AI Skill. Auto-collect Feishu/DingTalk data, generate Work Skill + Persona, with continuous evolution. | 把同事蒸馏成 AI Skill，自动采集飞书/钉钉数据，生成 Work + Persona，支持持续进化。"
+name: colleague-skill-creator
+description: "Distill a colleague into an AI Skill. Auto-collect Feishu/DingTalk/ZSXQ data, generate Work + Persona, support continuous evolution."
 argument-hint: "[colleague-name-or-slug]"
 version: "1.0.0"
 user-invocable: true
-allowed-tools: Read, Write, Edit, Bash
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
 > **Language / 语言**: This skill supports both English and Chinese. Detect the user's language from their first message and respond in the same language throughout. Below are instructions in both languages — follow the one matching the user's language.
@@ -37,18 +37,24 @@ allowed-tools: Read, Write, Edit, Bash
 
 | 任务 | 使用工具 |
 |------|---------|
-| 读取 PDF 文档 | `Read` 工具（原生支持 PDF） |
-| 读取图片截图 | `Read` 工具（原生支持图片） |
-| 读取 MD/TXT 文件 | `Read` 工具 |
-| 解析飞书消息 JSON 导出 | `Bash` → `python3 ${CLAUDE_SKILL_DIR}/tools/feishu_parser.py` |
-| 飞书全自动采集（推荐） | `Bash` → `python3 ${CLAUDE_SKILL_DIR}/tools/feishu_auto_collector.py` |
-| 飞书文档（浏览器登录态） | `Bash` → `python3 ${CLAUDE_SKILL_DIR}/tools/feishu_browser.py` |
-| 飞书文档（MCP App Token） | `Bash` → `python3 ${CLAUDE_SKILL_DIR}/tools/feishu_mcp_client.py` |
-| 钉钉全自动采集 | `Bash` → `python3 ${CLAUDE_SKILL_DIR}/tools/dingtalk_auto_collector.py` |
-| 解析邮件 .eml/.mbox | `Bash` → `python3 ${CLAUDE_SKILL_DIR}/tools/email_parser.py` |
+| 读取 PDF/图片/MD/TXT | `Read` 工具（原生支持） |
+| 搜索文件 | `Glob` / `Grep` 工具 |
+| 飞书自动采集 | `Bash` → `feishu_auto_collector.py` |
+| 飞书浏览器方案 | `Bash` → `feishu_browser.py` |
+| 飞书 MCP 方案 | `Bash` → `feishu_mcp_client.py` |
+| 飞书 JSON 解析 | `Bash` → `feishu_parser.py` |
+| 钉钉自动采集 | `Bash` → `dingtalk_auto_collector.py` |
+| Slack 采集 | `Bash` → `slack_auto_collector.py` |
+| 邮件解析 | `Bash` → `email_parser.py` |
+| 知识星球采集 | `Bash` → `zsxq_browser_v2.py` |
+| 微信公众号采集 | `Bash` → `scrape_wechat.py` |
+| 简书文章采集 | `Bash` → `collect_jianshu.py` |
+| 数据质量分析 | `Bash` → `analyze_posts.py` |
+| 核心观点提取 | `Bash` → `extract_insights.py` |
+| 关键帖子提取 | `Bash` → `extract_key_posts.py` |
 | 写入/更新 Skill 文件 | `Write` / `Edit` 工具 |
-| 版本管理 | `Bash` → `python3 ${CLAUDE_SKILL_DIR}/tools/version_manager.py` |
-| 列出已有 Skill | `Bash` → `python3 ${CLAUDE_SKILL_DIR}/tools/skill_writer.py --action list` |
+| 版本管理 | `Bash` → `version_manager.py` |
+| 列出已有 Skill | `Bash` → `skill_writer.py --action list` |
 
 **基础目录**：Skill 文件写入 `./colleagues/{slug}/`（相对于本项目目录）。
 如需改为全局路径，用 `--base-dir ~/.openclaw/workspace/skills/colleagues`。
@@ -71,7 +77,7 @@ allowed-tools: Read, Write, Edit, Bash
 
 ### Step 2：原材料导入
 
-询问用户提供原材料，展示四种方式供选择：
+询问用户提供原材料，展示六种方式供选择：
 
 ```
 原材料怎么提供？
@@ -79,17 +85,22 @@ allowed-tools: Read, Write, Edit, Bash
   [A] 飞书自动采集（推荐）
       输入姓名，自动拉取消息记录 + 文档 + 多维表格
 
-  [B] 钉钉自动采集
+  [B] 知识星球采集
+      帖子正文 + 评论 + 互动数据
+      需手动登录浏览器并访问知识星球
+
+  [C] 微信公众号 / 简书文章
+      批量采集公开文章内容
+      需提供文章 URL 列表
+
+  [D] 钉钉自动采集
       输入姓名，自动拉取文档 + 多维表格
       消息记录通过浏览器采集（钉钉 API 不支持历史消息）
 
-  [C] 飞书链接
-      直接给文档/Wiki 链接（浏览器登录态 或 MCP）
+  [E] 飞书链接 / 上传文件
+      直接给文档/Wiki 链接，或上传 PDF / 图片 / JSON / 邮件
 
-  [D] 上传文件
-      PDF / 图片 / 导出 JSON / 邮件 .eml
-
-  [E] 直接粘贴内容
+  [F] 直接粘贴内容
       把文字复制进来
 
 可以混用，也可以跳过（仅凭手动信息生成）。
@@ -208,11 +219,54 @@ python3 ${CLAUDE_SKILL_DIR}/tools/feishu_auto_collector.py \
 - 群聊采集：bot 未添加到群聊
 - 私聊采集：user_access_token 过期（有效期 2 小时，可用 refresh_token 刷新）
 - 权限不足：引导用户在飞书开放平台开通对应权限并重新授权
-- 或改用方式 B/C
+- 或改用其他方式
 
 ---
 
-#### 方式 B：钉钉自动采集
+#### 方式 B：知识星球采集
+
+使用 Playwright 浏览器方案，需手动登录知识星球：
+
+```bash
+python3 ${CLAUDE_SKILL_DIR}/tools/zsxq_browser_v2.py \
+  --group-id {group_id} \
+  --output-dir ./knowledge/{slug}/zsxq
+```
+
+**参数说明**：
+- `group_id`：知识星球小组 ID，可在 URL 中找到（如 `https://wx.zsxq.com/dgp/88882242841112/` 末尾数字）
+- `output-dir`：输出目录，会生成 `posts_full.txt` 和 `comments.json`
+
+**采集内容**：
+- 帖子正文（含"展开全部"后的完整内容）
+- 评论和互动数据
+- 阅读数、点赞数等指标
+
+**灵活性原则**：如果脚本跑不通，可以直接写 Python 脚本调知识星球 API 或用 Playwright 手动抓取。
+
+采集完成后用 `Read` 读取输出文件。
+
+---
+
+#### 方式 C：微信公众号 / 简书文章
+
+**微信公众号采集**：
+```bash
+python3 ${CLAUDE_SKILL_DIR}/tools/scrape_wechat.py
+```
+需在脚本中配置文章 URL 列表 `ALL_URLS`，使用 Chrome persistent context 自动批量采集。
+
+**简书文章采集**：
+```bash
+python3 ${CLAUDE_SKILL_DIR}/tools/collect_jianshu.py
+```
+需在脚本中配置用户 ID 和登录态。
+
+采集完成后用 `Read` 读取 `zsxq_data/wechat/articles_full.md` 或 `zsxq_data/jianshu/articles.md`。
+
+---
+
+#### 方式 D：钉钉自动采集
 
 首次使用需配置：
 ```bash
@@ -243,24 +297,7 @@ python3 ${CLAUDE_SKILL_DIR}/tools/dingtalk_auto_collector.py \
 
 ---
 
-#### 方式 C：上传文件
-
-- **PDF / 图片**：`Read` 工具直接读取
-- **飞书消息 JSON 导出**：
-  ```bash
-  python3 ${CLAUDE_SKILL_DIR}/tools/feishu_parser.py --file {path} --target "{name}" --output /tmp/feishu_out.txt
-  ```
-  然后 `Read /tmp/feishu_out.txt`
-- **邮件文件 .eml / .mbox**：
-  ```bash
-  python3 ${CLAUDE_SKILL_DIR}/tools/email_parser.py --file {path} --target "{name}" --output /tmp/email_out.txt
-  ```
-  然后 `Read /tmp/email_out.txt`
-- **Markdown / TXT**：`Read` 工具直接读取
-
----
-
-#### 方式 B：飞书链接
+#### 方式 E：飞书链接 / 上传文件
 
 用户提供飞书文档/Wiki 链接时，询问读取方式：
 
@@ -293,33 +330,31 @@ python3 ${CLAUDE_SKILL_DIR}/tools/feishu_browser.py \
 首次使用若未登录，会弹出浏览器窗口要求登录（一次性）。
 
 **选 2（MCP 方案）**：
-
-首次使用需初始化配置：
 ```bash
 python3 ${CLAUDE_SKILL_DIR}/tools/feishu_mcp_client.py --setup
-```
-
-之后直接读取：
-```bash
+# 之后
 python3 ${CLAUDE_SKILL_DIR}/tools/feishu_mcp_client.py \
   --url "{feishu_url}" \
   --output /tmp/feishu_doc_out.txt
 ```
 
-读取消息记录（需要群聊 ID，格式 `oc_xxx`）：
-```bash
-python3 ${CLAUDE_SKILL_DIR}/tools/feishu_mcp_client.py \
-  --chat-id "oc_xxx" \
-  --target "{name}" \
-  --limit 500 \
-  --output /tmp/feishu_msg_out.txt
-```
-
-两种方式输出后均用 `Read` 读取结果文件，进入分析流程。
+**上传文件**：
+- **PDF / 图片**：`Read` 工具直接读取
+- **飞书消息 JSON 导出**：
+  ```bash
+  python3 ${CLAUDE_SKILL_DIR}/tools/feishu_parser.py --file {path} --target "{name}" --output /tmp/feishu_out.txt
+  ```
+  然后 `Read /tmp/feishu_out.txt`
+- **邮件文件 .eml / .mbox**：
+  ```bash
+  python3 ${CLAUDE_SKILL_DIR}/tools/email_parser.py --file {path} --target "{name}" --output /tmp/email_out.txt
+  ```
+  然后 `Read /tmp/email_out.txt`
+- **Markdown / TXT**：`Read` 工具直接读取
 
 ---
 
-#### 方式 C：直接粘贴
+#### 方式 F：直接粘贴
 
 用户粘贴的内容直接作为文本原材料，无需调用任何工具。
 
@@ -340,6 +375,28 @@ python3 ${CLAUDE_SKILL_DIR}/tools/feishu_mcp_client.py \
 - 参考 `${CLAUDE_SKILL_DIR}/prompts/persona_analyzer.md` 中的提取维度
 - 将用户填写的标签翻译为具体行为规则（参见标签翻译表）
 - 从原材料中提取：表达风格、决策模式、人际行为
+
+### Step 3.5：原材料质量分析（可选）
+
+采集完原始数据后，建议先用分析脚本评估质量：
+
+```bash
+# 知识星球数据质量分析
+python3 ${CLAUDE_SKILL_DIR}/tools/analyze_posts.py
+
+# 核心观点提取（通用文本）
+python3 ${CLAUDE_SKILL_DIR}/tools/extract_insights.py \
+  --input ./knowledge/{slug}/zsxq/posts_full.txt \
+  --output ./knowledge/{slug}/知识星球_核心观点.md
+
+# 关键帖子提取（高阅读、高互动）
+python3 ${CLAUDE_SKILL_DIR}/tools/extract_key_posts.py \
+  --input ./knowledge/{slug}/zsxq/posts_full.txt \
+  --top-n 20 \
+  --output ./knowledge/{slug}/关键帖子.md
+```
+
+分析完成后，将提取出的核心观点和关键帖子作为重点材料，输入 Step 3 的双线路分析。
 
 ### Step 4：生成并预览
 
@@ -537,18 +594,24 @@ This Skill runs in the Claude Code environment with the following tools:
 
 | Task | Tool |
 |------|------|
-| Read PDF documents | `Read` tool (native PDF support) |
-| Read image screenshots | `Read` tool (native image support) |
-| Read MD/TXT files | `Read` tool |
-| Parse Feishu message JSON export | `Bash` → `python3 ${CLAUDE_SKILL_DIR}/tools/feishu_parser.py` |
-| Feishu auto-collect (recommended) | `Bash` → `python3 ${CLAUDE_SKILL_DIR}/tools/feishu_auto_collector.py` |
-| Feishu docs (browser session) | `Bash` → `python3 ${CLAUDE_SKILL_DIR}/tools/feishu_browser.py` |
-| Feishu docs (MCP App Token) | `Bash` → `python3 ${CLAUDE_SKILL_DIR}/tools/feishu_mcp_client.py` |
-| DingTalk auto-collect | `Bash` → `python3 ${CLAUDE_SKILL_DIR}/tools/dingtalk_auto_collector.py` |
-| Parse email .eml/.mbox | `Bash` → `python3 ${CLAUDE_SKILL_DIR}/tools/email_parser.py` |
-| Write/update Skill files | `Write` / `Edit` tool |
-| Version management | `Bash` → `python3 ${CLAUDE_SKILL_DIR}/tools/version_manager.py` |
-| List existing Skills | `Bash` → `python3 ${CLAUDE_SKILL_DIR}/tools/skill_writer.py --action list` |
+| Read PDF/images/MD/TXT | `Read` tool (native support) |
+| Search files | `Glob` / `Grep` tools |
+| Feishu auto-collect | `Bash` → `feishu_auto_collector.py` |
+| Feishu browser method | `Bash` → `feishu_browser.py` |
+| Feishu MCP method | `Bash` → `feishu_mcp_client.py` |
+| Feishu JSON parser | `Bash` → `feishu_parser.py` |
+| DingTalk auto-collect | `Bash` → `dingtalk_auto_collector.py` |
+| Slack collector | `Bash` → `slack_auto_collector.py` |
+| Email parser | `Bash` → `email_parser.py` |
+| Knowledge Planet collector | `Bash` → `zsxq_browser_v2.py` |
+| WeChat public account | `Bash` → `scrape_wechat.py` |
+| Jianshu articles | `Bash` → `collect_jianshu.py` |
+| Data quality analysis | `Bash` → `analyze_posts.py` |
+| Core insights extraction | `Bash` → `extract_insights.py` |
+| Key posts extraction | `Bash` → `extract_key_posts.py` |
+| Write/update Skill files | `Write` / `Edit` tools |
+| Version management | `Bash` → `version_manager.py` |
+| List Skills | `Bash` → `skill_writer.py --action list` |
 
 **Base directory**: Skill files are written to `./colleagues/{slug}/` (relative to the project directory).
 For a global path, use `--base-dir ~/.openclaw/workspace/skills/colleagues`.
@@ -579,17 +642,22 @@ How would you like to provide source materials?
   [A] Feishu Auto-Collect (recommended)
       Enter name, auto-pull messages + docs + spreadsheets
 
-  [B] DingTalk Auto-Collect
+  [B] Knowledge Planet
+      Posts + comments + engagement data
+      Requires browser login
+
+  [C] WeChat Public Account / Jianshu
+      Batch collect public articles
+      Need article URL list
+
+  [D] DingTalk Auto-Collect
       Enter name, auto-pull docs + spreadsheets
-      Messages collected via browser (DingTalk API doesn't support message history)
+      Messages via browser (DingTalk API doesn't support history)
 
-  [C] Feishu Link
-      Provide doc/Wiki link (browser session or MCP)
+  [E] Feishu Link / Upload Files
+      Provide doc/Wiki link, or upload PDF/images/JSON/email
 
-  [D] Upload Files
-      PDF / images / exported JSON / email .eml
-
-  [E] Paste Text
+  [F] Paste Text
       Copy-paste text directly
 
 Can mix and match, or skip entirely (generate from manual info only).
@@ -708,11 +776,45 @@ If collection fails, diagnose the error and attempt to fix it. Common issues:
 - Group chat: bot not added to the group
 - Private chat: user_access_token expired (2-hour TTL, refresh with refresh_token)
 - Insufficient permissions: guide user to enable scopes and re-authorize
-- Or switch to Option B/C
+- Or switch to other options
 
 ---
 
-#### Option B: DingTalk Auto-Collect
+#### Option B: Knowledge Planet Collector
+
+Use Playwright browser method, requires manual login to Knowledge Planet:
+
+```bash
+python3 ${CLAUDE_SKILL_DIR}/tools/zsxq_browser_v2.py \
+  --group-id {group_id} \
+  --output-dir ./knowledge/{slug}/zsxq
+```
+
+**Parameters**:
+- `group_id`: Knowledge Planet group ID, found in URL (e.g., `https://wx.zsxq.com/dgp/88882242841112/` → `88882242841112`)
+- `output-dir`: Output directory, generates `posts_full.txt` and `comments.json`
+
+**Flexibility principle**: If the script doesn't work, write Python scripts directly or use Playwright to manually scrape.
+
+---
+
+#### Option C: WeChat Public Account / Jianshu
+
+**WeChat public account**:
+```bash
+python3 ${CLAUDE_SKILL_DIR}/tools/scrape_wechat.py
+```
+Configure article URLs in `ALL_URLS` list, uses Chrome persistent context for batch collection.
+
+**Jianshu articles**:
+```bash
+python3 ${CLAUDE_SKILL_DIR}/tools/collect_jianshu.py
+```
+Requires user ID and login session configuration.
+
+---
+
+#### Option D: DingTalk Auto-Collect
 
 First-time setup:
 ```bash
@@ -743,24 +845,7 @@ If message collection fails, prompt user to upload chat screenshots.
 
 ---
 
-#### Option C: Upload Files
-
-- **PDF / Images**: `Read` tool directly
-- **Feishu message JSON export**:
-  ```bash
-  python3 ${CLAUDE_SKILL_DIR}/tools/feishu_parser.py --file {path} --target "{name}" --output /tmp/feishu_out.txt
-  ```
-  Then `Read /tmp/feishu_out.txt`
-- **Email files .eml / .mbox**:
-  ```bash
-  python3 ${CLAUDE_SKILL_DIR}/tools/email_parser.py --file {path} --target "{name}" --output /tmp/email_out.txt
-  ```
-  Then `Read /tmp/email_out.txt`
-- **Markdown / TXT**: `Read` tool directly
-
----
-
-#### Option D: Feishu Link
+#### Option E: Feishu Link / Upload Files
 
 When the user provides a Feishu doc/Wiki link, ask which method to use:
 
@@ -793,33 +878,31 @@ python3 ${CLAUDE_SKILL_DIR}/tools/feishu_browser.py \
 First use will open a browser window for login (one-time).
 
 **Option 2 (MCP)**:
-
-First-time setup:
 ```bash
 python3 ${CLAUDE_SKILL_DIR}/tools/feishu_mcp_client.py --setup
-```
-
-Then read directly:
-```bash
+# then
 python3 ${CLAUDE_SKILL_DIR}/tools/feishu_mcp_client.py \
   --url "{feishu_url}" \
   --output /tmp/feishu_doc_out.txt
 ```
 
-Read messages (needs chat ID, format `oc_xxx`):
-```bash
-python3 ${CLAUDE_SKILL_DIR}/tools/feishu_mcp_client.py \
-  --chat-id "oc_xxx" \
-  --target "{name}" \
-  --limit 500 \
-  --output /tmp/feishu_msg_out.txt
-```
-
-Both methods output to files, then use `Read` to load results into analysis.
+**File upload**:
+- **PDF / Images**: `Read` tool directly
+- **Feishu message JSON export**:
+  ```bash
+  python3 ${CLAUDE_SKILL_DIR}/tools/feishu_parser.py --file {path} --target "{name}" --output /tmp/feishu_out.txt
+  ```
+  Then `Read /tmp/feishu_out.txt`
+- **Email files .eml / .mbox**:
+  ```bash
+  python3 ${CLAUDE_SKILL_DIR}/tools/email_parser.py --file {path} --target "{name}" --output /tmp/email_out.txt
+  ```
+  Then `Read /tmp/email_out.txt`
+- **Markdown / TXT**: `Read` tool directly
 
 ---
 
-#### Option E: Paste Text
+#### Option F: Paste Text
 
 User-pasted content is used directly as text material. No tools needed.
 
@@ -840,6 +923,28 @@ Combine all collected materials and user-provided info, analyze along two tracks
 - Refer to `${CLAUDE_SKILL_DIR}/prompts/persona_analyzer.md` for extraction dimensions
 - Translate user-provided tags into concrete behavior rules (see tag translation table)
 - Extract from materials: communication style, decision patterns, interpersonal behavior
+
+### Step 3.5: Source Material Quality Analysis (Optional)
+
+After collecting raw data, run analysis scripts to evaluate quality:
+
+```bash
+# Knowledge Planet data quality analysis
+python3 ${CLAUDE_SKILL_DIR}/tools/analyze_posts.py
+
+# Core insights extraction (generic text)
+python3 ${CLAUDE_SKILL_DIR}/tools/extract_insights.py \
+  --input ./knowledge/{slug}/zsxq/posts_full.txt \
+  --output ./knowledge/{slug}/知识星球_核心观点.md
+
+# Key posts extraction (high views, high engagement)
+python3 ${CLAUDE_SKILL_DIR}/tools/extract_key_posts.py \
+  --input ./knowledge/{slug}/zsxq/posts_full.txt \
+  --top-n 20 \
+  --output ./knowledge/{slug}/关键帖子.md
+```
+
+After analysis, use the extracted core insights and key posts as priority materials for Step 3's dual-track analysis.
 
 ### Step 4: Generate and Preview
 

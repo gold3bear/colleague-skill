@@ -87,16 +87,16 @@
 ```bash
 # 安装到当前项目（在 git 仓库根目录执行）
 mkdir -p .claude/skills
-git clone https://github.com/titanwings/colleague-skill .claude/skills/create-colleague
+git clone https://github.com/gold3bear/colleague-skill .claude/skills/colleague-skill
 
 # 或安装到全局（所有项目都能用）
-git clone https://github.com/titanwings/colleague-skill ~/.claude/skills/create-colleague
+git clone https://github.com/gold3bear/colleague-skill ~/.claude/skills/colleague-skill
 ```
 
-### OpenClaw
+#### OpenClaw
 
 ```bash
-git clone https://github.com/titanwings/colleague-skill ~/.openclaw/workspace/skills/create-colleague
+git clone https://github.com/gold3bear/colleague-skill ~/.openclaw/workspace/skills/colleague-skill
 ```
 
 ### 依赖（可选）
@@ -187,12 +187,69 @@ pip3 install -r requirements.txt
 
 ---
 
+## 实际工作流程
+
+### 采集 → 分析 → 构建
+
+```
+原材料收集
+    ├── 知识星球（帖子、评论）
+    ├── 简书/微信公众号（文章）
+    ├── 飞书/钉钉/Slack（消息记录）
+    └── 直接粘贴或上传文件
+            ↓
+数据分析与提取
+    ├── 内容质量分析（analyze_posts.py）
+    ├── 核心观点提取（extract_insights.py）
+    └── 关键帖子提取（extract_key_posts.py）
+            ↓
+Skill 构建
+    ├── work.md — 技术规范、工作流程、经验知识
+    ├── persona.md — 5层性格结构
+    └── meta.json — 元信息
+            ↓
+验证与优化
+    ├── 测试题目生成
+    └── 对话纠正（Correction 层）
+```
+
+### 数据采集脚本说明
+
+| 脚本 | 用途 |
+|------|------|
+| `zsxq_browser_v2.py` | 知识星球数据采集，需手动登录并访问 |
+| `scrape_wechat.py` | 微信公众号文章批量采集，使用 Chrome persistent context |
+| `collect_jianshu.py` | 简书文章采集 |
+| `batch_scrape_jianshu.py` | 简书批量采集 |
+| `analyze_posts.py` | 知识星球帖子质量分析 |
+| `extract_insights.py` | 从文本中提取核心观点和方法论 |
+| `extract_key_posts.py` | 提取关键帖子（高阅读量、高互动） |
+
+### Skill 目录结构
+
+每个同事 Skill 包含：
+
+```
+colleagues/{slug}/
+├── SKILL.md          # 完整 Skill（PART A 工作能力 + PART B 人物性格）
+├── work.md           # 技术规范、工作流程、经验知识库
+├── persona.md        # 5层性格结构
+├── meta.json         # 元信息（姓名、slug、版本、标签）
+├── versions/         # 历史版本存档
+└── knowledge/        # 原始导入材料
+    ├── 知识星球_核心观点.md
+    ├── 微信公众号_方法论.md
+    └── articles_full.md
+```
+
+---
+
 ## 项目结构
 
 本项目遵循 [AgentSkills](https://agentskills.io) 开放标准，整个 repo 就是一个 skill 目录：
 
 ```
-create-colleague/
+colleague-skill/
 ├── SKILL.md              # skill 入口（官方 frontmatter）
 ├── prompts/              # Prompt 模板
 │   ├── intake.md         #   对话式信息录入
@@ -202,20 +259,46 @@ create-colleague/
 │   ├── persona_builder.md #   persona.md 五层结构模板
 │   ├── merger.md         #   增量 merge 逻辑
 │   └── correction_handler.md # 对话纠正处理
-├── tools/                # Python 工具
-│   ├── feishu_auto_collector.py  # 飞书全自动采集
-│   ├── feishu_browser.py         # 飞书浏览器方案
+├── tools/                # Python 数据采集工具
+│   ├── feishu_auto_collector.py  # 飞书全自动采集（群聊/私聊/文档）
+│   ├── feishu_browser.py         # 飞书浏览器方案（需登录态）
 │   ├── feishu_mcp_client.py      # 飞书 MCP 方案
-│   ├── dingtalk_auto_collector.py # 钉钉全自动采集
-│   ├── slack_auto_collector.py   # Slack 全自动采集
-│   ├── email_parser.py           # 邮件解析
-│   ├── skill_writer.py           # Skill 文件管理
-│   └── version_manager.py        # 版本存档与回滚
-├── colleagues/           # 生成的同事 Skill（gitignored）
+│   ├── feishu_parser.py         # 飞书 JSON 导出解析
+│   ├── dingtalk_auto_collector.py # 钉钉采集
+│   ├── slack_auto_collector.py   # Slack 采集
+│   ├── email_parser.py          # 邮件解析
+│   ├── skill_writer.py          # Skill 文件管理
+│   ├── version_manager.py       # 版本存档与回滚
+│   ├── zsxq_browser.py          # 知识星球浏览器采集（需登录态）
+│   └── zsxq_browser_v2.py      # 知识星球浏览器采集 v2
+├── colleagues/           # 生成的同事 Skill（每个 {slug}/ 下有 SKILL.md, work.md, persona.md, meta.json）
 ├── docs/PRD.md
 ├── requirements.txt
 └── LICENSE
 ```
+
+### 数据采集工具对照表
+
+| 工具 | 用途 | 前置条件 |
+|------|------|---------|
+| `feishu_auto_collector.py` | 飞书群聊/私聊/文档采集 | App ID/Secret + (私聊需要) OAuth 授权 |
+| `feishu_browser.py` | 飞书文档浏览器方案 | 本机 Chrome + Playwright |
+| `feishu_mcp_client.py` | 飞书 MCP 方案 | App ID/Secret |
+| `feishu_parser.py` | 飞书 JSON 导出解析 | 无 |
+| `dingtalk_auto_collector.py` | 钉钉采集 | DingTalk 开放平台配置 |
+| `slack_auto_collector.py` | Slack 采集 | Slack Bot Token |
+| `email_parser.py` | 邮件 .eml/.mbox 解析 | 无 |
+
+### 触发词
+
+在 Claude Code 中使用：
+- `/create-colleague` — 创建新同事 Skill
+- `/list-colleagues` — 列出所有同事
+- `/{slug}` — 调用完整同事 Skill
+- `/{slug}-work` — 仅工作能力
+- `/{slug}-persona` — 仅人物性格
+- `/colleague-rollback {slug} {version}` — 回滚
+- `/delete-colleague {slug}` — 删除同事
 
 ---
 

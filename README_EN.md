@@ -87,16 +87,16 @@ These are independent open-source projects — this project does not include the
 ```bash
 # Install to current project (run at git repo root)
 mkdir -p .claude/skills
-git clone https://github.com/titanwings/colleague-skill .claude/skills/create-colleague
+git clone https://github.com/gold3bear/colleague-skill .claude/skills/colleague-skill
 
 # Or install globally (available in all projects)
-git clone https://github.com/titanwings/colleague-skill ~/.claude/skills/create-colleague
+git clone https://github.com/gold3bear/colleague-skill ~/.claude/skills/colleague-skill
 ```
 
 ### OpenClaw
 
 ```bash
-git clone https://github.com/titanwings/colleague-skill ~/.openclaw/workspace/skills/create-colleague
+git clone https://github.com/gold3bear/colleague-skill ~/.openclaw/workspace/skills/colleague-skill
 ```
 
 ### Dependencies (optional)
@@ -189,12 +189,69 @@ Execution: `Receive task → Persona decides attitude → Work Skill executes �
 
 ---
 
+## Actual Workflow
+
+### Collect → Analyze → Build
+
+```
+Source Material Collection
+    ├── Knowledge Planet (posts, comments)
+    ├── Jianshu/WeChat (articles)
+    ├── Feishu/DingTalk/Slack (messages)
+    └── Paste or upload files
+            ↓
+Data Analysis & Extraction
+    ├── Content quality analysis (analyze_posts.py)
+    ├── Core insights extraction (extract_insights.py)
+    └── Key posts extraction (extract_key_posts.py)
+            ↓
+Skill Building
+    ├── work.md — Tech specs, workflows, experience
+    ├── persona.md — 5-layer personality structure
+    └── meta.json — Metadata
+            ↓
+Validation & Optimization
+    ├── Test question generation
+    └── Conversation correction (Correction layer)
+```
+
+### Data Collection Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `zsxq_browser_v2.py` | Knowledge Planet data collection, requires manual login |
+| `scrape_wechat.py` | WeChat public account batch collection |
+| `collect_jianshu.py` | Jianshu article collection |
+| `batch_scrape_jianshu.py` | Jianshu batch collection |
+| `analyze_posts.py` | Knowledge Planet post quality analysis |
+| `extract_insights.py` | Extract core insights from text |
+| `extract_key_posts.py` | Extract key posts (high views, high engagement) |
+
+### Skill Directory Structure
+
+Each colleague Skill contains:
+
+```
+colleagues/{slug}/
+├── SKILL.md          # Full Skill (PART A Work + PART B Persona)
+├── work.md           # Tech specs, workflows, experience
+├── persona.md        # 5-layer personality structure
+├── meta.json         # Metadata (name, slug, version, tags)
+├── versions/         # Version archives
+└── knowledge/        # Raw imported materials
+    ├── 知识星球_核心观点.md
+    ├── 微信公众号_方法论.md
+    └── articles_full.md
+```
+
+---
+
 ## Project Structure
 
 This project follows the [AgentSkills](https://agentskills.io) open standard. The entire repo is a skill directory:
 
 ```
-create-colleague/
+colleague-skill/
 ├── SKILL.md              # Skill entry point (official frontmatter)
 ├── prompts/              # Prompt templates
 │   ├── intake.md         #   Dialogue-based info collection
@@ -204,20 +261,46 @@ create-colleague/
 │   ├── persona_builder.md #   persona.md 5-layer structure
 │   ├── merger.md         #   Incremental merge logic
 │   └── correction_handler.md # Conversation correction handler
-├── tools/                # Python tools
-│   ├── feishu_auto_collector.py  # Feishu auto-collector
-│   ├── feishu_browser.py         # Feishu browser method
+├── tools/                # Python data collection tools
+│   ├── feishu_auto_collector.py  # Feishu auto-collector (groups/dms/docs)
+│   ├── feishu_browser.py         # Feishu browser method (login required)
 │   ├── feishu_mcp_client.py      # Feishu MCP method
-│   ├── dingtalk_auto_collector.py # DingTalk auto-collector
-│   ├── slack_auto_collector.py   # Slack auto-collector
-│   ├── email_parser.py           # Email parser
+│   ├── feishu_parser.py         # Feishu JSON export parser
+│   ├── dingtalk_auto_collector.py # DingTalk collector
+│   ├── slack_auto_collector.py   # Slack collector
+│   ├── email_parser.py           # Email .eml/.mbox parser
 │   ├── skill_writer.py           # Skill file management
-│   └── version_manager.py        # Version archive & rollback
-├── colleagues/           # Generated colleague Skills (gitignored)
+│   ├── version_manager.py        # Version archive & rollback
+│   ├── zsxq_browser.py          # Knowledge Planet browser scraper
+│   └── zsxq_browser_v2.py       # Knowledge Planet browser scraper v2
+├── colleagues/           # Generated colleague Skills ({slug}/ contains SKILL.md, work.md, persona.md, meta.json)
 ├── docs/PRD.md
 ├── requirements.txt
 └── LICENSE
 ```
+
+### Data Collection Tools
+
+| Tool | Purpose | Prerequisites |
+|------|---------|---------------|
+| `feishu_auto_collector.py` | Feishu group/dm/doc collection | App ID/Secret + (dms need) OAuth |
+| `feishu_browser.py` | Feishu doc browser | Local Chrome + Playwright |
+| `feishu_mcp_client.py` | Feishu MCP | App ID/Secret |
+| `feishu_parser.py` | Feishu JSON export | None |
+| `dingtalk_auto_collector.py` | DingTalk | DingTalk Open Platform |
+| `slack_auto_collector.py` | Slack | Slack Bot Token |
+| `email_parser.py` | Email .eml/.mbox | None |
+
+### Invocation Commands
+
+In Claude Code:
+- `/create-colleague` — Create new colleague Skill
+- `/list-colleagues` — List all colleagues
+- `/{slug}` — Invoke full Skill
+- `/{slug}-work` — Work capabilities only
+- `/{slug}-persona` — Persona only
+- `/colleague-rollback {slug} {version}` — Rollback
+- `/delete-colleague {slug}` — Delete
 
 ---
 

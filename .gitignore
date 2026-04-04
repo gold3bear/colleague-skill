@@ -15,12 +15,22 @@ venv/
 
 # Playwright browser data
 playwright-data/
+.playwright-mcp/
 
 # Temp files
 /tmp/feishu_*.txt
 /tmp/email_*.txt
 /tmp/dingtalk_*.txt
+
+# Knowledge data (raw source materials - may contain private info)
 knowledge/
+zsxq_data/
+notebook/
+
+# Scraped screenshots and HTML (may contain private conversations)
+zsxq_*.png
+zsxq_*.html
+zsxq_*.txt
 
 # OS
 .DS_Store
